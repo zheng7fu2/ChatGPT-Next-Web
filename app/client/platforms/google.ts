@@ -1,8 +1,15 @@
 import { ApiPath, Google, REQUEST_TIMEOUT_MS } from "@/app/constant";
-import { ChatOptions, getHeaders, LLMApi, LLMModel, LLMUsage } from "../api";
+import {
+  ChatOptions,
+  getHeaders,
+  LLMApi,
+  LLMModel,
+  LLMUsage,
+  SpeechOptions,
+} from "../api";
 import { useAccessStore, useAppConfig, useChatStore } from "@/app/store";
 import { getClientConfig } from "@/app/config/client";
-import { DEFAULT_API_HOST } from "@/app/constant";
+import { GEMINI_BASE_URL } from "@/app/constant";
 import Locale from "../../locales";
 import {
   EventStreamContentType,
@@ -15,6 +22,7 @@ import {
   isVisionModel,
 } from "@/app/utils";
 import { preProcessImageContent } from "@/app/utils/chat";
+import { fetch } from "@/app/utils/stream";
 
 export class GeminiProApi implements LLMApi {
   path(path: string): string {
@@ -27,7 +35,7 @@ export class GeminiProApi implements LLMApi {
 
     const isApp = !!getClientConfig()?.isApp;
     if (baseUrl.length === 0) {
-      baseUrl = isApp ? DEFAULT_API_HOST + `/api/proxy/google` : ApiPath.Google;
+      baseUrl = isApp ? GEMINI_BASE_URL : ApiPath.Google;
     }
     if (baseUrl.endsWith("/")) {
       baseUrl = baseUrl.slice(0, baseUrl.length - 1);
@@ -41,10 +49,6 @@ export class GeminiProApi implements LLMApi {
     let chatPath = [baseUrl, path].join("/");
 
     chatPath += chatPath.includes("?") ? "&alt=sse" : "?alt=sse";
-    // if chatPath.startsWith('http') then add key in query string
-    if (chatPath.startsWith("http") && accessStore.googleApiKey) {
-      chatPath += `&key=${accessStore.googleApiKey}`;
-    }
     return chatPath;
   }
   extractMessage(res: any) {
@@ -56,6 +60,10 @@ export class GeminiProApi implements LLMApi {
       ""
     );
   }
+  speech(options: SpeechOptions): Promise<ArrayBuffer> {
+    throw new Error("Method not implemented.");
+  }
+
   async chat(options: ChatOptions): Promise<void> {
     const apiClient = this;
     let multimodal = false;
@@ -206,6 +214,7 @@ export class GeminiProApi implements LLMApi {
         controller.signal.onabort = finish;
 
         fetchEventSource(chatPath, {
+          fetch: fetch as any,
           ...chatPayload,
           async onopen(res) {
             clearTimeout(requestTimeoutId);
